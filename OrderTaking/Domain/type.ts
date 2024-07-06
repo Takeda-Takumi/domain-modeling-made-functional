@@ -1,35 +1,51 @@
-import { string } from "fp-ts"
 import { TaskEither } from "fp-ts/lib/TaskEither"
 
 type decimal = never
 type int = never
 
-type CustomerId = int
 type WidgetCode = string
+type GizmoCode = never
+type ProductCode = WidgetCode | GizmoCode
+
 type UnitQuantity = int
 type KilogramQuatity = decimal
+type OrderQuantity = UnitQuantity | KilogramQuatity
+
+
+type OrderId = never
+type OrderLineId = never
+type CustomerId = int
 
 type CustomerInfo = never
 type ShippingAddress = never
 type BillingAddress = never
-type OrderLine = never
+type Price = never
 type BillingAmount = never
 
 type Order = {
+  Id: OrderId
+  CustomerId: CustomerId
   CustomerInfo: CustomerInfo
   ShippingAddress: ShippingAddress
   BillingAddress: BillingAddress
   OrderLines: OrderLine[]
   AmountToBill: BillingAmount
+  Price: Price
 }
 
-type Gizmo = never
+type OrderLine = {
+  Id: OrderLineId
+  OrderId: OrderId
+  ProductCode: ProductCode
+  OrderQuantity: OrderQuantity
+}
 
-type ProductCode = WidgetCode | Gizmo
-type OrderQuantity = UnitQuantity | KilogramQuatity
 
-export type UnvalidateOrder = never
-export type ValidateOrder = never
+export type UnvalidateOrder = {
+  OrderId: string
+  CustomerInfo: never
+  ShippingAddress: never
+}
 
 type AcknowledgmentSent = never
 type OrderPlaced = never
@@ -41,14 +57,11 @@ export type PlaceOrderEvents = {
   BillableOrderPlaced: BillableOrderPlaced
 }
 
-type QuoteForm = never
-type OrderForm = never
-export type EnvelopeContents = string
-export type CategorizedMail = QuoteForm | OrderForm
-
 export type ValidationError = {
   FieldName: string
   ErrorDescription: string
 }
+
+export type PlaceOrderError = ValidationError[]
 
 export type ValidationResponse<T> = TaskEither<ValidationError, T>
