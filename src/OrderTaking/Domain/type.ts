@@ -1,27 +1,31 @@
+import { EmailAddress, int, OrderLineId, OrderQuantity, ProductCode } from "../Common.SimpleTypes"
 import { OrderId } from "./OrderId"
 
-type decimal = never
-export type int = number
+type Individual<
+  TCoproduct extends Record<"type", keyof any>,
+  Tag extends TCoproduct["type"],
+> = Extract<TCoproduct, Record<"type", Tag>>;
+
+export function match<TCoproduct extends Record<"type", keyof any>>(
+  value: TCoproduct,
+) {
+  return function <TOut>(
+    patterns: {
+      [K in TCoproduct["type"]]: (
+        param: Individual<TCoproduct, K>
+      ) => TOut;
+    },
+  ): TOut {
+    const tag: TCoproduct["type"] = value.type;
+    return patterns[tag](value as any);
+  };
+}
 
 type NonEmptyList<T> = {
   First: T
   Rest: T[]
 }
 
-type WidgetCode = string
-type GizmoCode = never
-export type ProductCode = WidgetCode | GizmoCode
-
-export type UnitQuantity = {
-  readonly type: "UnitQuantity"
-  readonly value: int
-}
-
-type KilogramQuatity = decimal
-type OrderQuantity = UnitQuantity | KilogramQuatity
-
-
-type OrderLineId = never
 export type CustomerId = int
 
 export type ShippingAddress = never
@@ -40,7 +44,6 @@ type OrderLine = {
 type AcknowledgmentSent = never
 type OrderPlaced = never
 
-export type EmailAddress = never
 type VerifiedEmailAddress = never
 
 type CustomerEmail = {

@@ -1,21 +1,11 @@
 import { TaskEither } from "fp-ts/lib/TaskEither"
-import { BillingAddress, BillingAmount, EmailAddress } from "./OrderTaking/Domain/type"
-import { PricedOrder, ValidationError } from "./PlaceOrderWorkflow"
+import { BillingAddress, BillingAmount } from "./OrderTaking/Domain/type"
 import { OrderId } from "./OrderTaking/Domain/OrderId"
+import { EmailAddress } from "./OrderTaking/Common.SimpleTypes"
+import { UnvalidatedAddress, UnvalidatedCustomerInfo, UnvalidatedOrder } from "./OrderTaking/PlaceOrder.PublicTypes"
+import { PricedOrder, ValidationError } from "./OrderTaking/PlaceOrder.Implemantation"
 
 // input data
-export type UnvalidatedOrder = {
-  OrderId: string
-  CustomerInfo: UnvalidatedCustomer
-  ShippingAddress: UnvalidatedAddress
-}
-
-type UnvalidatedCustomer = {
-  Name: string
-  Email: string
-}
-
-export type UnvalidatedAddress = never
 
 // input command
 type Command<Data> = {

@@ -1,5 +1,5 @@
 import { Either, left, right } from "fp-ts/lib/Either";
-import { UnitQuantity, int } from "./type";
+import { int, UnitQuantity } from "../Common.SimpleTypes";
 
 
 export const create = (quantity: int): Either<string, UnitQuantity> => {
