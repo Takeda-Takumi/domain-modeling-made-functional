@@ -10,7 +10,7 @@ type NonEmptyList<T> = {
 
 type WidgetCode = string
 type GizmoCode = never
-type ProductCode = WidgetCode | GizmoCode
+export type ProductCode = WidgetCode | GizmoCode
 
 export type UnitQuantity = {
   readonly type: "UnitQuantity"
@@ -28,7 +28,7 @@ type CustomerId = int
 type CustomerInfo = never
 type ShippingAddress = never
 type BillingAddress = never
-type Price = never
+export type Price = never
 type BillingAmount = never
 type ValidatedOrderLine = never
 
@@ -47,7 +47,7 @@ export type UnvalidateOrder = {
   ShippingAddress: never
 }
 
-type ValidatedOrder = {
+export type ValidatedOrder = {
   OrderId: OrderId
   CustomerId: CustomerId
   CustomerInfo: CustomerInfo
@@ -59,7 +59,7 @@ type ValidatedOrder = {
 type Address = never
 type PricedOrderLine = never
 
-type PricedOrder = {
+export type PricedOrder = {
   OrderId: OrderId
   CustomerId: CustomerId
   CustomerInfo: CustomerInfo
@@ -72,13 +72,14 @@ type PricedOrder = {
 
 type AcknowledgmentSent = never
 type OrderPlaced = never
-type BillableOrderPlaced = never
-
-export type PlaceOrderEvents = {
-  AcknowledgmentSent: AcknowledgmentSent
-  OrderPlaced: OrderPlaced
-  BillableOrderPlaced: BillableOrderPlaced
+type BillableOrderPlaced = {
+  OrderId: OrderId
+  BillingAddress: BillingAddress
+  AmountToBill: BillingAmount
 }
+
+export type PlaceOrderEvents =
+  AcknowledgmentSent | OrderPlaced | BillableOrderPlaced
 
 export type ValidationError = {
   FieldName: string
@@ -97,3 +98,23 @@ type CustomerEmail = {
   Verified: VerifiedEmailAddress
 }
 
+export type UnvalidatedAddress = never
+export type CheckedAddress = UnvalidatedAddress
+export type AddressValidationError = string
+
+export type HtmlString = string
+export type OrderAcknowledgment = {
+  EmailAddress: EmailAddress
+  Letter: HtmlString
+}
+
+type Sent = never
+type NotSent = never
+export type SendResult = Sent | NotSent
+
+export type OrderAcknowledgmentSent = {
+  OrderId: OrderId
+  EmailAddress: EmailAddress
+}
+
+type OrderPriced = PricedOrder
