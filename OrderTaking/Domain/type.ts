@@ -3,6 +3,11 @@ import { TaskEither } from "fp-ts/lib/TaskEither"
 type decimal = never
 export type int = number
 
+type NonEmptyList<T> = {
+  First: T
+  Rest: T[]
+}
+
 type WidgetCode = string
 type GizmoCode = never
 type ProductCode = WidgetCode | GizmoCode
@@ -32,7 +37,7 @@ type Order = {
   CustomerInfo: CustomerInfo
   ShippingAddress: ShippingAddress
   BillingAddress: BillingAddress
-  OrderLines: OrderLine[]
+  OrderLines: NonEmptyList<OrderLine>
   AmountToBill: BillingAmount
   Price: Price
 }
