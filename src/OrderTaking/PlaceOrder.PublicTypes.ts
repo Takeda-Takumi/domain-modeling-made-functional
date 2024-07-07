@@ -1,6 +1,5 @@
 import { Address } from "./Common.CompoundTypes"
-import { BillingAmount, decimal, EmailAddress } from "./Common.SimpleTypes"
-import { OrderId } from "./Domain/OrderId"
+import { BillingAmount, decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
 import { PricedOrder } from "./PlaceOrder.Implemantation"
 
 export type UnvalidatedCustomerInfo = {

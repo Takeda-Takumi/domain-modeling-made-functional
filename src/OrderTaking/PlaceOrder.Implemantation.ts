@@ -1,13 +1,12 @@
 import { flow, identity, pipe } from "fp-ts/lib/function"
-import { createOrderId, OrderId } from "./Domain/OrderId"
 import { Address, CustomerInfo } from "./Common.CompoundTypes"
 import { toAddress, toCunstomerInfo } from "./PlaceOrder.Dto"
-import { match } from "./Domain/type"
 import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
-import { BillingAmount, createInt, createKilogramQuantity, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, EmailAddress, GizmoCode, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
+import { BillingAmount, createInt, createKilogramQuantity, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, EmailAddress, GizmoCode, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
 import { array, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { PlaceOrderWorkflow } from "../DomainApi"
+import { match } from "./util"
 
 // 注文のライフサクル
 

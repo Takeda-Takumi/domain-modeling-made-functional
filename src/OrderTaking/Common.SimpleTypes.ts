@@ -1,4 +1,5 @@
 import { array, monoid, option } from "fp-ts"
+import { Either, left, right } from "fp-ts/lib/Either"
 import { flip, identity, pipe } from "fp-ts/lib/function"
 import { MonoidSum } from "fp-ts/lib/number"
 import { Option } from "fp-ts/lib/Option"
@@ -130,3 +131,33 @@ export const sumPricesBillingAmount =
       value: total
     }
   }
+
+export type OrderId = {
+  type: "OrderId",
+  value: string
+}
+
+export const createOrderId = (id: string): OrderId => {
+  if (id === '') throw Error()
+  else if (id.length > 50) throw Error()
+  else {
+    return {
+      type: "OrderId",
+      value: id
+    }
+  }
+}
+
+export const create = (quantity: int): Either<string, UnitQuantity> => {
+  if (quantity < 1) {
+    return left('UnitQuantity can not be negative')
+  } else if (quantity > 1000) {
+    return left("UnitQuantity can not be more than 1000")
+  } else {
+    return right({
+      type: "UnitQuantity",
+      value: quantity
+    })
+  }
+}
+
