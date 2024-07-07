@@ -1,4 +1,7 @@
-import { decimal } from "./Common.SimpleTypes"
+import { Address } from "./Common.CompoundTypes"
+import { BillingAmount, decimal, EmailAddress } from "./Common.SimpleTypes"
+import { OrderId } from "./Domain/OrderId"
+import { PricedOrder } from "./PlaceOrder.Implemantation"
 
 export type UnvalidatedCustomerInfo = {
   FirstName: string
@@ -28,3 +31,22 @@ export type UnvalidatedOrder = {
   BillingAddress: UnvalidatedAddress
   Lines: UnvalidatedOrderLine[]
 }
+
+export type OrderAcknowledgmentSent = {
+  OrderId: OrderId
+  EmailAddress: EmailAddress
+}
+
+export type OrderPlaced = PricedOrder
+
+export type BillableOrderPlaced = {
+  OrderId: OrderId
+  BillingAddress: Address
+  AmountToBill: BillingAmount
+}
+
+export type PlaceOrderEvent =
+  OrderAcknowledgmentSent
+  | BillableOrderPlaced
+  | OrderPlaced
+

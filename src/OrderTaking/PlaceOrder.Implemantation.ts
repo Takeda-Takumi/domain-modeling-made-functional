@@ -1,12 +1,12 @@
-import { Either } from "fp-ts/lib/Either"
-import { pipe } from "fp-ts/lib/function"
+import { identity, pipe } from "fp-ts/lib/function"
 import { createOrderId, OrderId } from "./Domain/OrderId"
 import { Address, CustomerInfo } from "./Common.CompoundTypes"
 import { toAddress, toCunstomerInfo } from "./PlaceOrder.Dto"
 import { match } from "./Domain/type"
-import { UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
-import { BillingAmount, createInt, createKilogramQuantity, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, GizmoCode, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
-import { array } from "fp-ts"
+import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
+import { BillingAmount, createInt, createKilogramQuantity, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, EmailAddress, GizmoCode, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
+import { array, option } from "fp-ts"
+import { Option } from "fp-ts/lib/Option"
 
 // 注文のライフサクル
 
@@ -206,4 +206,104 @@ const priceOrder: PriceOrder =
         AmountToBill: amountToBill
       }
       return pricedOrder
+    }
+
+export type HtmlString = string
+
+type CreateOrderAcknowledgmentLetter =
+  (arg: PricedOrder) =>
+    HtmlString
+
+export type OrderAcknowledgment = {
+  EmailAddress: EmailAddress
+  Letter: HtmlString
+}
+
+type Sent = {
+  type: "Sent"
+}
+type NotSent = {
+  type: "NotSent"
+}
+export type SendResult = Sent | NotSent
+
+type SendOrderAcknowledgment =
+  (arg: OrderAcknowledgment) =>
+    SendResult
+
+type AcknowledgeOrder =
+  (func: CreateOrderAcknowledgmentLetter) =>
+    (func: SendOrderAcknowledgment) =>
+      (arg: PricedOrder) =>
+        Option<OrderAcknowledgmentSent>
+
+const acknowledgeOrder: AcknowledgeOrder =
+  (createOrderAcknowledgmentLetter: CreateOrderAcknowledgmentLetter) =>
+    (sendOrderAcknowledgment: SendOrderAcknowledgment) =>
+      (pricedOrder: PricedOrder) => {
+        const letter = createOrderAcknowledgmentLetter(pricedOrder)
+        const acknowledgment: OrderAcknowledgment = {
+          EmailAddress: pricedOrder.CustomerInfo.EmailAddress,
+          Letter: letter
+        }
+        return match(sendOrderAcknowledgment(acknowledgment))({
+          Sent: () => {
+            const event: OrderAcknowledgmentSent = {
+              OrderId: pricedOrder.OrderId,
+              EmailAddress: pricedOrder.CustomerInfo.EmailAddress
+            }
+            return option.some(event)
+          },
+          NotSent: () => option.none
+        })
+      }
+
+type CreateEvents =
+  (arg: PricedOrder) =>
+    (arg: Option<OrderAcknowledgmentSent>) =>
+      PlaceOrderEvent[]
+
+const createOrderPlacedEvent =
+  (placedOrder: PricedOrder): OrderPlaced =>
+    placedOrder
+
+
+const createBillingEvent =
+  (placedOrder: PricedOrder): Option<BillableOrderPlaced> => {
+    const billingAmount = pipe(
+      placedOrder.AmountToBill.value
+    )
+    if (billingAmount > 0) {
+      return option.some({
+        OrderId: placedOrder.OrderId,
+        BillingAddress: placedOrder.BillingAddress,
+        AmountToBill: placedOrder.AmountToBill
+      })
+    } else return option.none
+  }
+
+const createEvents: CreateEvents =
+  (pricedOrder: PricedOrder) =>
+    (acknowledgementEventOpt: Option<OrderAcknowledgmentSent>) => {
+      const acknowledgmentEvents = pipe(
+        acknowledgementEventOpt,
+        array.fromOption
+      )
+      const orderPlacedEvents = pipe(
+        pricedOrder,
+        createOrderPlacedEvent,
+        array.of
+      )
+      const billingEvents = pipe(
+        pricedOrder,
+        createBillingEvent,
+        array.fromOption
+      )
+      return [
+        acknowledgmentEvents,
+        orderPlacedEvents,
+        billingEvents,
+      ].flatMap(identity<Array<PlaceOrderEvent>>)
+
+
     }

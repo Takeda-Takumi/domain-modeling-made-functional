@@ -40,7 +40,6 @@ type OrderLine = {
 }
 
 type AcknowledgmentSent = never
-type OrderPlaced = never
 
 type VerifiedEmailAddress = never
 
@@ -50,15 +49,7 @@ type CustomerEmail = {
 }
 
 
-export type HtmlString = string
-export type OrderAcknowledgment = {
-  EmailAddress: EmailAddress
-  Letter: HtmlString
-}
 
-type Sent = never
-type NotSent = never
-export type SendResult = Sent | NotSent
 
 
 

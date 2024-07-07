@@ -1,4 +1,4 @@
-import { array, option } from "fp-ts"
+import { array, monoid, option } from "fp-ts"
 import { flip, identity, pipe } from "fp-ts/lib/function"
 import { MonoidSum } from "fp-ts/lib/number"
 import { Option } from "fp-ts/lib/Option"
@@ -114,13 +114,19 @@ export type Price = {
   value: decimal
 }
 
-export type BillingAmount = decimal
+export type BillingAmount = {
+  type: "BillingAmount"
+  value: decimal
+}
 export const sumPricesBillingAmount =
-  (prices: Price[]) => {
+  (prices: Price[]): BillingAmount => {
     const total = pipe(
       prices,
       array.map(price => price.value),
       array.foldMap(MonoidSum)(identity)
     )
-    return total
+    return {
+      type: "BillingAmount",
+      value: total
+    }
   }
