@@ -30,17 +30,9 @@ type ShippingAddress = never
 type BillingAddress = never
 type Price = never
 type BillingAmount = never
+type ValidatedOrderLine = never
 
-type Order = {
-  Id: OrderId
-  CustomerId: CustomerId
-  CustomerInfo: CustomerInfo
-  ShippingAddress: ShippingAddress
-  BillingAddress: BillingAddress
-  OrderLines: NonEmptyList<OrderLine>
-  AmountToBill: BillingAmount
-  Price: Price
-}
+type Order = UnvalidateOrder | ValidatedOrder | PricedOrder
 
 type OrderLine = {
   Id: OrderLineId
@@ -49,11 +41,33 @@ type OrderLine = {
   OrderQuantity: OrderQuantity
 }
 
-
 export type UnvalidateOrder = {
   OrderId: string
   CustomerInfo: never
   ShippingAddress: never
+}
+
+type ValidatedOrder = {
+  OrderId: OrderId
+  CustomerId: CustomerId
+  CustomerInfo: CustomerInfo
+  ShippingAddress: Address
+  BillingAddress: Address
+  OrderLines: ValidatedOrderLine[]
+}
+
+type Address = never
+type PricedOrderLine = never
+
+type PricedOrder = {
+  OrderId: OrderId
+  CustomerId: CustomerId
+  CustomerInfo: CustomerInfo
+  ShippingAddress: Address
+  BillingAddress: Address
+  OrderLines: PricedOrderLine[]
+  AmountToBill: BillingAmount
+  Price: Price
 }
 
 type AcknowledgmentSent = never
@@ -74,3 +88,12 @@ export type ValidationError = {
 export type PlaceOrderError = ValidationError[]
 
 export type ValidationResponse<T> = TaskEither<ValidationError, T>
+
+type EmailAddress = never
+type VerifiedEmailAddress = never
+
+type CustomerEmail = {
+  Unverified: EmailAddress,
+  Verified: VerifiedEmailAddress
+}
+
