@@ -1,7 +1,9 @@
-import { option } from "fp-ts"
+import { array, option } from "fp-ts"
+import { flip, identity, pipe } from "fp-ts/lib/function"
+import { MonoidSum } from "fp-ts/lib/number"
 import { Option } from "fp-ts/lib/Option"
 
-export type decimal = never
+export type decimal = number
 export type int = number
 export const createInt = (num: number): int => {
   throw new Error()
@@ -103,6 +105,22 @@ export const createKilogramQuantity = (qty: decimal): KilogramQuatity => {
 export type OrderQuantity = UnitQuantity | KilogramQuatity
 export const createOrderQuantity =
   (productCode: ProductCode) =>
-    (quantity: UnitQuantity): OrderQuantity => {
+    (quantity: decimal): OrderQuantity => {
       throw new Error()
     }
+
+export type Price = {
+  type: "Price"
+  value: decimal
+}
+
+export type BillingAmount = decimal
+export const sumPricesBillingAmount =
+  (prices: Price[]) => {
+    const total = pipe(
+      prices,
+      array.map(price => price.value),
+      array.foldMap(MonoidSum)(identity)
+    )
+    return total
+  }

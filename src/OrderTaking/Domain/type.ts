@@ -30,8 +30,6 @@ export type CustomerId = int
 
 export type ShippingAddress = never
 export type BillingAddress = never
-export type Price = never
-export type BillingAmount = never
 
 
 type OrderLine = {

@@ -3,9 +3,9 @@ import { pipe } from "fp-ts/lib/function"
 import { createOrderId, OrderId } from "./Domain/OrderId"
 import { Address, CustomerInfo } from "./Common.CompoundTypes"
 import { toAddress, toCunstomerInfo } from "./PlaceOrder.Dto"
-import { BillingAmount, CustomerId, match, Price } from "./Domain/type"
+import { match } from "./Domain/type"
 import { UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
-import { createInt, createKilogramQuantity, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, GizmoCode, OrderLineId, OrderQuantity, ProductCode, WidgetCode } from "./Common.SimpleTypes"
+import { BillingAmount, createInt, createKilogramQuantity, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, GizmoCode, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
 import { array } from "fp-ts"
 
 // 注文のライフサクル
@@ -21,23 +21,26 @@ type ValidatedOrder = {
   CustomerInfo: CustomerInfo
   ShippingAddress: Address
   BillingAddress: Address
-  OrderLines: ValidatedOrderLine[]
+  Lines: ValidatedOrderLine[]
 }
 
 
 // 価格計算済みの状態
-type PricedOrderLine = never
+type PricedOrderLine = {
+  OrderLineId: OrderLineId
+  ProductCode: ProductCode
+  Quantity: OrderQuantity
+  LinePrice: Price
+}
 
 // 全状態の結合
 export type PricedOrder = {
   OrderId: OrderId
-  CustomerId: CustomerId
   CustomerInfo: CustomerInfo
   ShippingAddress: Address
   BillingAddress: Address
-  OrderLines: PricedOrderLine[]
   AmountToBill: BillingAmount
-  Price: Price
+  Lines: PricedOrderLine[]
 }
 
 type Order = UnvalidatedOrder | ValidatedOrder | PricedOrder
@@ -76,7 +79,7 @@ export type PricingError = string
 type PriceOrder =
   (func: GetProductPrice) =>
     (arg: ValidatedOrder) =>
-      Either<PricingError, PricedOrder>
+      PricedOrder
 
 
 const validateOrder: ValidateOrder =
@@ -174,4 +177,33 @@ const toOrderQuantity =
       })
 
       return createOrderQuantity(productCode)(quantity)
+    }
+const toPricedOrderLine =
+  (getProductPrice: GetProductPrice) =>
+    (line: ValidatedOrderLine): PricedOrderLine => {
+      throw new Error()
+      return {} as PricedOrderLine
+    }
+
+const priceOrder: PriceOrder =
+  (getProductPrice: GetProductPrice) =>
+    (validateOrder: ValidatedOrder) => {
+      const lines = pipe(
+        validateOrder.Lines,
+        array.map(toPricedOrderLine(getProductPrice))
+      )
+      const amountToBill = pipe(
+        lines,
+        array.map((line) => line.LinePrice),
+        sumPricesBillingAmount
+      )
+      const pricedOrder: PricedOrder = {
+        OrderId: validateOrder.OrderId,
+        CustomerInfo: validateOrder.CustomerInfo,
+        ShippingAddress: validateOrder.ShippingAddress,
+        BillingAddress: validateOrder.BillingAddress,
+        Lines: lines,
+        AmountToBill: amountToBill
+      }
+      return pricedOrder
     }
