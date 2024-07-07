@@ -13,6 +13,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "fp-ts": "^2.16.7"
+    "fp-ts": "^2.16.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "ts-jest": "^29.1.5"
   }
 }

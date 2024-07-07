@@ -1,13 +1,17 @@
 import { TaskEither } from "fp-ts/lib/TaskEither"
 
 type decimal = never
-type int = never
+export type int = number
 
 type WidgetCode = string
 type GizmoCode = never
 type ProductCode = WidgetCode | GizmoCode
 
-type UnitQuantity = int
+export type UnitQuantity = {
+  readonly type: "UnitQuantity"
+  readonly value: int
+}
+
 type KilogramQuatity = decimal
 type OrderQuantity = UnitQuantity | KilogramQuatity
 
