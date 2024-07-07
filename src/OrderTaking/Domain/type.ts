@@ -1,4 +1,4 @@
-import { OrderId } from "../../PlaceOrderWorkflow"
+import { OrderId } from "./OrderId"
 
 type decimal = never
 export type int = number

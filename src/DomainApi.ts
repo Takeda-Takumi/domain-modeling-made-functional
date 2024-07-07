@@ -1,6 +1,7 @@
 import { TaskEither } from "fp-ts/lib/TaskEither"
 import { BillingAddress, BillingAmount, EmailAddress } from "./OrderTaking/Domain/type"
-import { OrderId, PricedOrder, ValidationError } from "./PlaceOrderWorkflow"
+import { PricedOrder, ValidationError } from "./PlaceOrderWorkflow"
+import { OrderId } from "./OrderTaking/Domain/OrderId"
 
 // input data
 export type UnvalidatedOrder = {

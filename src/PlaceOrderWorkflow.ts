@@ -2,6 +2,7 @@ import { TaskEither } from "fp-ts/lib/TaskEither"
 import { UnvalidatedAddress, UnvalidatedOrder } from "./DomainApi"
 import { BillingAmount, CustomerId, Price, ProductCode } from "./OrderTaking/Domain/type"
 import { Either } from "fp-ts/lib/Either"
+import { OrderId } from "./OrderTaking/Domain/OrderId"
 
 // 注文のライフサクル
 
@@ -15,7 +16,6 @@ type ValidatedOrder = {
   OrderLines: ValidatedOrderLine[]
 }
 
-export type OrderId = never
 export type CustomerInfo = never
 type Address = never
 
