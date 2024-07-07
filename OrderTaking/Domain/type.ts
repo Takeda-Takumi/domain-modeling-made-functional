@@ -118,3 +118,4 @@ export type OrderAcknowledgmentSent = {
 }
 
 type OrderPriced = PricedOrder
+export type PricingError = string
