@@ -1,7 +1,3 @@
-import { TaskEither } from "fp-ts/lib/TaskEither"
-import { BillingAddress } from "./OrderTaking/Domain/type"
-import { OrderId } from "./OrderTaking/Domain/OrderId"
-import { BillingAmount, EmailAddress } from "./OrderTaking/Common.SimpleTypes"
 import { PlaceOrderEvent, UnvalidatedOrder } from "./OrderTaking/PlaceOrder.PublicTypes"
 import { PricedOrder, ValidationError } from "./OrderTaking/PlaceOrder.Implemantation"
 
@@ -25,7 +21,7 @@ type OrderPlaced = PricedOrder
 
 type PlaceOrderError = ValidationError[]
 
-type PlaceOrderWorkflow =
-  (arg: PlaceOrderCommand) =>
-    TaskEither<PlaceOrderError, PlaceOrderEvent[]>
+export type PlaceOrderWorkflow =
+  (unvalidatedOrder: UnvalidatedOrder) =>
+    PlaceOrderEvent[]
 

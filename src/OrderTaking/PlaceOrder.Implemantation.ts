@@ -1,12 +1,13 @@
-import { identity, pipe } from "fp-ts/lib/function"
+import { flow, identity, pipe } from "fp-ts/lib/function"
 import { createOrderId, OrderId } from "./Domain/OrderId"
 import { Address, CustomerInfo } from "./Common.CompoundTypes"
 import { toAddress, toCunstomerInfo } from "./PlaceOrder.Dto"
 import { match } from "./Domain/type"
 import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
 import { BillingAmount, createInt, createKilogramQuantity, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, EmailAddress, GizmoCode, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
-import { array, option } from "fp-ts"
+import { array, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
+import { PlaceOrderWorkflow } from "../DomainApi"
 
 // 注文のライフサクル
 
@@ -49,7 +50,7 @@ type Order = UnvalidatedOrder | ValidatedOrder | PricedOrder
 
 // 注文の検証
 
-type CheckProductCodeExist =
+type CheckProductCodeExists =
   (arg: ProductCode) =>
     boolean
 
@@ -61,7 +62,7 @@ export type CheckAddressExists =
     CheckedAddress
 
 type ValidateOrder =
-  (func: CheckProductCodeExist) =>
+  (func: CheckProductCodeExists) =>
     (func: CheckAddressExists) =>
       (arg: UnvalidatedOrder) =>
         ValidatedOrder
@@ -83,7 +84,7 @@ type PriceOrder =
 
 
 const validateOrder: ValidateOrder =
-  (checkProductCodeExist: CheckProductCodeExist) =>
+  (checkProductCodeExists: CheckProductCodeExists) =>
     (checkAddressExists: CheckAddressExists) =>
       (unvalidatedOrder: UnvalidatedOrder) => {
         const orderId = pipe(
@@ -100,13 +101,13 @@ const validateOrder: ValidateOrder =
         )
         const orderLines = pipe(
           unvalidatedOrder.Lines,
-          array.map(toValidatedOrderLine(checkProductCodeExist))
+          array.map(toValidatedOrderLine(checkProductCodeExists))
         )
         return {} as ValidatedOrder
       }
 
 const toValidatedOrderLine =
-  (checkProductCodeExist: CheckProductCodeExist) =>
+  (checkProductCodeExists: CheckProductCodeExists) =>
     (unvalidatedOrderLine: UnvalidatedOrderLine) => {
       const orderLineId = pipe(
         unvalidatedOrderLine.OrderLineId,
@@ -114,7 +115,7 @@ const toValidatedOrderLine =
       )
       const productCode = pipe(
         unvalidatedOrderLine.ProductCode,
-        toProductCode(checkProductCodeExist)
+        toProductCode(checkProductCodeExists)
       )
 
       const quantity = pipe(
@@ -142,12 +143,12 @@ const predicateToPassthru =
         }
       }
 const toProductCode =
-  (checkProductCodeExist: CheckProductCodeExist) =>
+  (checkProductCodeExists: CheckProductCodeExists) =>
     (productCode: string) => {
       const checkProduct =
         (productCode: ProductCode) => {
           const errorMsg = "Invalid"
-          return predicateToPassthru<ProductCode>(errorMsg)(checkProductCodeExist)(productCode)
+          return predicateToPassthru<ProductCode>(errorMsg)(checkProductCodeExists)(productCode)
         }
 
       return pipe(
@@ -307,3 +308,31 @@ const createEvents: CreateEvents =
 
 
     }
+
+const placeOrder =
+  (checkProductCodeExists: CheckProductCodeExists) =>
+    (checkAddressExists: CheckAddressExists) =>
+      (getProductPrice: GetProductPrice) =>
+        (createOrderAcknowledgmentLetter: CreateOrderAcknowledgmentLetter) =>
+          (sendOrderAcknowledgment: SendOrderAcknowledgment): PlaceOrderWorkflow =>
+            (unvalidatedOrder: UnvalidatedOrder) => {
+              const validatedOrder = pipe(
+                unvalidatedOrder,
+                validateOrder
+                  (checkProductCodeExists)
+                  (checkAddressExists)
+              )
+              const pricedOrder = pipe(
+                validatedOrder,
+                priceOrder
+                  (getProductPrice)
+              )
+              const acknowledgmentOption = pipe(
+                pricedOrder,
+                acknowledgeOrder
+                  (createOrderAcknowledgmentLetter)
+                  (sendOrderAcknowledgment)
+              )
+              const events = createEvents(pricedOrder)(acknowledgmentOption)
+              return events
+            }
