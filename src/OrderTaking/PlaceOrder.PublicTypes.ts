@@ -1,6 +1,6 @@
 import { Address } from "./Common.CompoundTypes"
 import { BillingAmount, decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
-import { PricedOrder } from "./PlaceOrder.Implemantation"
+import { PricedOrder, PricingError, ValidationError } from "./PlaceOrder.Implemantation"
 
 export type UnvalidatedCustomerInfo = {
   FirstName: string
@@ -49,3 +49,6 @@ export type PlaceOrderEvent =
   | BillableOrderPlaced
   | OrderPlaced
 
+export type PlaceOrderError =
+  ValidationError
+  | PricingError

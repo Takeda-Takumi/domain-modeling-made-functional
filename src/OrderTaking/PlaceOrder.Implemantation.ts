@@ -3,10 +3,11 @@ import { Address, CustomerInfo } from "./Common.CompoundTypes"
 import { toAddress, toCunstomerInfo } from "./PlaceOrder.Dto"
 import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
 import { BillingAmount, createInt, createKilogramQuantity, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, EmailAddress, GizmoCode, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
-import { array, option, taskEither } from "fp-ts"
+import { array, either, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { PlaceOrderWorkflow } from "../DomainApi"
 import { match } from "./util"
+import { Either } from "fp-ts/lib/Either"
 
 // 注文のライフサクル
 
@@ -64,7 +65,8 @@ type ValidateOrder =
   (func: CheckProductCodeExists) =>
     (func: CheckAddressExists) =>
       (arg: UnvalidatedOrder) =>
-        ValidatedOrder
+        Either<ValidationError, ValidatedOrder>
+
 export type ValidationError = {
   FieldName: string
   ErrorDescription: string
@@ -75,11 +77,13 @@ type GetProductPrice =
   (arg: ProductCode) =>
     Price
 
-export type PricingError = string
+export type PricingError = {
+  type: "PricingError"
+}
 type PriceOrder =
   (func: GetProductPrice) =>
     (arg: ValidatedOrder) =>
-      PricedOrder
+      Either<PricingError, PricedOrder>
 
 
 const validateOrder: ValidateOrder =
@@ -102,7 +106,8 @@ const validateOrder: ValidateOrder =
           unvalidatedOrder.Lines,
           array.map(toValidatedOrderLine(checkProductCodeExists))
         )
-        return {} as ValidatedOrder
+        throw new Error()
+        return {} as Either<ValidationError, ValidatedOrder>
       }
 
 const toValidatedOrderLine =
@@ -205,7 +210,7 @@ const priceOrder: PriceOrder =
         Lines: lines,
         AmountToBill: amountToBill
       }
-      return pricedOrder
+      return either.right(pricedOrder)
     }
 
 export type HtmlString = string
@@ -315,23 +320,24 @@ const placeOrder =
         (createOrderAcknowledgmentLetter: CreateOrderAcknowledgmentLetter) =>
           (sendOrderAcknowledgment: SendOrderAcknowledgment): PlaceOrderWorkflow =>
             (unvalidatedOrder: UnvalidatedOrder) => {
-              const validatedOrder = pipe(
+              const validatedOrderAdapted = pipe(
                 unvalidatedOrder,
                 validateOrder
                   (checkProductCodeExists)
-                  (checkAddressExists)
+                  (checkAddressExists),
               )
-              const pricedOrder = pipe(
-                validatedOrder,
-                priceOrder
-                  (getProductPrice)
+              const pricedOrderAdapted = pipe(
+                validatedOrderAdapted,
+                either.flatMap(priceOrder(getProductPrice))
               )
               const acknowledgmentOption = pipe(
-                pricedOrder,
-                acknowledgeOrder
-                  (createOrderAcknowledgmentLetter)
-                  (sendOrderAcknowledgment)
+                pricedOrderAdapted,
+                either.map(
+                  acknowledgeOrder
+                    (createOrderAcknowledgmentLetter)
+                    (sendOrderAcknowledgment)
+                )
               )
-              const events = createEvents(pricedOrder)(acknowledgmentOption)
+              const events = either.ap(acknowledgmentOption)(either.map(createEvents)(pricedOrderAdapted))
               return events
             }

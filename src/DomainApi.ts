@@ -1,5 +1,6 @@
-import { PlaceOrderEvent, UnvalidatedOrder } from "./OrderTaking/PlaceOrder.PublicTypes"
+import { PlaceOrderError, PlaceOrderEvent, UnvalidatedOrder } from "./OrderTaking/PlaceOrder.PublicTypes"
 import { PricedOrder, ValidationError } from "./OrderTaking/PlaceOrder.Implemantation"
+import { Either } from "fp-ts/lib/Either"
 
 // input data
 
@@ -19,9 +20,7 @@ type OrderPlaced = PricedOrder
 
 
 
-type PlaceOrderError = ValidationError[]
-
 export type PlaceOrderWorkflow =
   (unvalidatedOrder: UnvalidatedOrder) =>
-    PlaceOrderEvent[]
+    Either<PlaceOrderError, PlaceOrderEvent[]>
 
