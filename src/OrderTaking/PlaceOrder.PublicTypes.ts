@@ -1,3 +1,4 @@
+import { Either } from "fp-ts/lib/Either"
 import { Address } from "./Common.CompoundTypes"
 import { BillingAmount, decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
 import { PricedOrder, PricingError, ValidationError } from "./PlaceOrder.Implemantation"
@@ -52,3 +53,7 @@ export type PlaceOrderEvent =
 export type PlaceOrderError =
   ValidationError
   | PricingError
+
+export type PlaceOrderWorkflow =
+  (unvalidatedOrder: UnvalidatedOrder) =>
+    Either<PlaceOrderError, PlaceOrderEvent[]>
