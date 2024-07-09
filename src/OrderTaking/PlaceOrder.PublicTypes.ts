@@ -1,7 +1,7 @@
 import { Either } from "fp-ts/lib/Either"
 import { Address } from "./Common.CompoundTypes"
 import { BillingAmount, decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
-import { PricedOrder, PricingError, ValidationError } from "./PlaceOrder.Implemantation"
+import { PricedOrder } from "./PlaceOrder.Implemantation"
 
 export type UnvalidatedCustomerInfo = {
   FirstName: string
@@ -49,6 +49,25 @@ export type PlaceOrderEvent =
   OrderAcknowledgmentSent
   | BillableOrderPlaced
   | OrderPlaced
+
+export type ValidationError = {
+  type: "ValidationError"
+  value: string
+}
+
+export type PricingError = {
+  type: "PricingError"
+}
+
+type ServiceInfo = {
+  Name: string
+  Endpoint: Uri
+}
+
+type RemoteServiceError = {
+  Service: ServiceInfo
+  Exception: Exception
+}
 
 export type PlaceOrderError =
   ValidationError

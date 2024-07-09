@@ -96,11 +96,21 @@ export type UnitQuantity = {
   readonly type: "UnitQuantity"
   readonly value: int
 }
-export const createUnitQuantity = (qty: int): UnitQuantity => {
-  throw new Error()
+export const createUnitQuantity = (quantity: int): Either<string, UnitQuantity> => {
+  if (quantity < 1) {
+    return left('UnitQuantity can not be negative')
+  } else if (quantity > 1000) {
+    return left("UnitQuantity can not be more than 1000")
+  } else {
+    return right({
+      type: "UnitQuantity",
+      value: quantity
+    })
+  }
 }
+
 type KilogramQuatity = decimal
-export const createKilogramQuantity = (qty: decimal): KilogramQuatity => {
+export const createKilogramQuantity = (qty: decimal): Either<string, KilogramQuatity> => {
   throw new Error()
 }
 export type OrderQuantity = UnitQuantity | KilogramQuatity
@@ -137,27 +147,15 @@ export type OrderId = {
   value: string
 }
 
-export const createOrderId = (id: string): OrderId => {
-  if (id === '') throw Error()
-  else if (id.length > 50) throw Error()
+export const createOrderId = (id: string): Either<string, OrderId> => {
+  if (id === '') return left('createOrderId')
+  else if (id.length > 50) return left('createOrderId')
   else {
-    return {
+    return right({
       type: "OrderId",
       value: id
-    }
-  }
-}
-
-export const create = (quantity: int): Either<string, UnitQuantity> => {
-  if (quantity < 1) {
-    return left('UnitQuantity can not be negative')
-  } else if (quantity > 1000) {
-    return left("UnitQuantity can not be more than 1000")
-  } else {
-    return right({
-      type: "UnitQuantity",
-      value: quantity
     })
   }
 }
+
 

@@ -1,12 +1,11 @@
-import { flow, identity, pipe } from "fp-ts/lib/function"
-import { Address, CustomerInfo } from "./Common.CompoundTypes"
-import { toAddress, toCunstomerInfo } from "./PlaceOrder.Dto"
-import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, PlaceOrderWorkflow, UnvalidatedAddress, UnvalidatedOrder, UnvalidatedOrderLine } from "./PlaceOrder.PublicTypes"
-import { BillingAmount, createInt, createKilogramQuantity, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, decimal, EmailAddress, GizmoCode, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
+import { flip, flow, identity, pipe } from "fp-ts/lib/function"
+import { Address, CustomerInfo, PersonalName } from "./Common.CompoundTypes"
+import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, PlaceOrderWorkflow, PricingError, UnvalidatedAddress, UnvalidatedCustomerInfo, UnvalidatedOrder, UnvalidatedOrderLine, ValidationError } from "./PlaceOrder.PublicTypes"
+import { BillingAmount, createEmailAddress, createInt, createKilogramQuantity, createOptionString50, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createString50, createUnitQuantity, createZipCode, decimal, EmailAddress, GizmoCode, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
 import { array, either, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { match } from "./util"
-import { Either } from "fp-ts/lib/Either"
+import { Either, right } from "fp-ts/lib/Either"
 
 // 注文のライフサクル
 
@@ -53,12 +52,21 @@ type CheckProductCodeExists =
   (arg: ProductCode) =>
     boolean
 
-type AddressValidationError = string
+type InvalidFormat = {
+  type: "InvalidFormat"
+}
+type AddressNotFound = {
+  type: "AddressNotFound"
+}
+type AddressValidationError =
+  InvalidFormat
+  | AddressNotFound
+
 type CheckedAddress = UnvalidatedAddress
 
 export type CheckAddressExists =
   (arg: UnvalidatedAddress) =>
-    CheckedAddress
+    Either<AddressValidationError, CheckedAddress>
 
 type ValidateOrder =
   (func: CheckProductCodeExists) =>
@@ -66,19 +74,12 @@ type ValidateOrder =
       (arg: UnvalidatedOrder) =>
         Either<ValidationError, ValidatedOrder>
 
-export type ValidationError = {
-  FieldName: string
-  ErrorDescription: string
-}
 
 
 type GetProductPrice =
   (arg: ProductCode) =>
     Price
 
-export type PricingError = {
-  type: "PricingError"
-}
 type PriceOrder =
   (func: GetProductPrice) =>
     (arg: ValidatedOrder) =>
@@ -91,27 +92,180 @@ const validateOrder: ValidateOrder =
       (unvalidatedOrder: UnvalidatedOrder) => {
         const orderId = pipe(
           unvalidatedOrder.OrderId,
-          createOrderId
+          toOrderId
         )
         const customerInfo = pipe(
           unvalidatedOrder.CustomerInfo,
-          toCunstomerInfo
+          toCustomerInfo
+        )
+        const checkedShippingAddress = pipe(
+          unvalidatedOrder.ShippingAddress,
+          toCheckedAddress(checkAddressExists)
         )
         const shippingAddress = pipe(
-          unvalidatedOrder.ShippingAddress,
-          toAddress(checkAddressExists)
+          checkedShippingAddress,
+          either.flatMap(toAddress)
         )
-        const orderLines = pipe(
+        const checkedBillingAddress = pipe(
+          unvalidatedOrder.BillingAddress,
+          toCheckedAddress(checkAddressExists)
+        )
+        const billingAddress = pipe(
+          checkedBillingAddress,
+          either.flatMap(toAddress)
+        )
+        const lines = pipe(
           unvalidatedOrder.Lines,
-          array.map(toValidatedOrderLine(checkProductCodeExists))
+          array.map(toValidatedOrderLine(checkProductCodeExists)),
+          array.sequence(either.Applicative)
         )
-        throw new Error()
-        return {} as Either<ValidationError, ValidatedOrder>
+
+        return pipe(
+          orderId,
+          either.flatMap((orderId: OrderId) =>
+            pipe(
+              customerInfo,
+              either.flatMap((customerInfo: CustomerInfo) =>
+                pipe(
+                  shippingAddress,
+                  either.flatMap((shippingAddress: Address) =>
+                    pipe(
+                      billingAddress,
+                      either.flatMap((billingAddress: Address) =>
+                        pipe(
+                          lines,
+                          either.flatMap((lines) => {
+                            const validatedOrder: ValidatedOrder = {
+                              OrderId: orderId,
+                              CustomerInfo: customerInfo,
+                              ShippingAddress: shippingAddress,
+                              BillingAddress: billingAddress,
+                              Lines: lines
+                            }
+                            return right(validatedOrder)
+                          }
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
       }
 
+const toOrderId =
+  (unvalidatedOrderId: string) => {
+    return pipe(
+      createOrderId(unvalidatedOrderId),
+      either.mapLeft((errorString: string): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: errorString
+        }
+      })
+    )
+  }
+
+export const toAddress =
+  (checkedAddress: CheckedAddress): Either<ValidationError, Address> => {
+
+
+    const addressLine1 = pipe(
+      checkedAddress.AddressLine1,
+      createString50
+    )
+
+    const addressLine2 = pipe(
+      checkedAddress.AddressLine2,
+      createOptionString50
+    )
+    const addressLine3 = pipe(
+      checkedAddress.AddressLine3,
+      createOptionString50
+    )
+
+    const addressLine4 = pipe(
+      checkedAddress.AddressLine4,
+      createOptionString50
+    )
+    const city = pipe(
+      checkedAddress.City,
+      createString50
+    )
+    const zipCode = pipe(
+      checkedAddress.ZipCode,
+      createZipCode
+    )
+
+    const address: Address = {
+      AddressLine1: addressLine1,
+      AddressLine2: addressLine2,
+      AddressLine3: addressLine3,
+      AddressLine4: addressLine4,
+      City: city,
+      ZipCode: zipCode
+    }
+    return right(address)
+  }
+
+export const toCustomerInfo =
+  (customer: UnvalidatedCustomerInfo): Either<ValidationError, CustomerInfo> => {
+    const firstName = pipe(
+      customer.FirstName,
+      createString50
+    )
+    const lastName = pipe(
+      customer.LastName,
+      createString50
+    )
+    const emailAddless = pipe(
+      customer.EmailAddless,
+      createEmailAddress
+    )
+    const name: PersonalName = {
+      FisrstName: firstName,
+      LastName: lastName
+    }
+    const customerInfo: CustomerInfo = {
+      Name: name,
+      EmailAddress: emailAddless
+    }
+
+    return right(customerInfo)
+  }
+
+const toCheckedAddress =
+  (checkAddress: CheckAddressExists) =>
+    (address: UnvalidatedAddress) => {
+      return pipe(
+        address,
+        checkAddress,
+        either.mapLeft((addError) => {
+          return match(addError)({
+            AddressNotFound: (): ValidationError => {
+              return {
+                type: "ValidationError",
+                value: 'Address not found'
+              }
+            },
+            InvalidFormat: (): ValidationError => {
+              return {
+                type: "ValidationError",
+                value: " Address has bad format"
+              }
+            }
+          })
+
+        })
+
+      )
+    }
 const toValidatedOrderLine =
   (checkProductCodeExists: CheckProductCodeExists) =>
-    (unvalidatedOrderLine: UnvalidatedOrderLine) => {
+    (unvalidatedOrderLine: UnvalidatedOrderLine): Either<ValidationError, ValidatedOrderLine> => {
       const orderLineId = pipe(
         unvalidatedOrderLine.OrderLineId,
         createOrderLineId
@@ -132,7 +286,7 @@ const toValidatedOrderLine =
         Quantity: quantity
       }
 
-      return validatedOrderLine
+      return right(validatedOrderLine)
     }
 
 const predicateToPassthru =
@@ -163,7 +317,7 @@ const toProductCode =
 const toOrderQuantity =
   (productCode: ProductCode) =>
     (quantity: decimal): OrderQuantity => {
-      match(productCode)<OrderQuantity>({
+      match(productCode)<Either<string, OrderQuantity>>({
         WidgetCode: (widgetCode: WidgetCode) => {
           return pipe(
             quantity,
