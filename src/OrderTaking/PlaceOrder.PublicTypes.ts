@@ -2,6 +2,7 @@ import { Either } from "fp-ts/lib/Either"
 import { Address } from "./Common.CompoundTypes"
 import { BillingAmount, decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
 import { PricedOrder } from "./PlaceOrder.Implemantation"
+import { TaskEither } from "fp-ts/lib/TaskEither"
 
 export type UnvalidatedCustomerInfo = {
   FirstName: string
@@ -75,4 +76,4 @@ export type PlaceOrderError =
 
 export type PlaceOrderWorkflow =
   (unvalidatedOrder: UnvalidatedOrder) =>
-    Either<PlaceOrderError, PlaceOrderEvent[]>
+    TaskEither<PlaceOrderError, PlaceOrderEvent[]>

@@ -6,6 +6,7 @@ import { array, either, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { match } from "./util"
 import { Either, right } from "fp-ts/lib/Either"
+import { TaskEither } from "fp-ts/lib/TaskEither"
 
 // 注文のライフサクル
 
@@ -66,13 +67,13 @@ type CheckedAddress = UnvalidatedAddress
 
 export type CheckAddressExists =
   (arg: UnvalidatedAddress) =>
-    Either<AddressValidationError, CheckedAddress>
+    TaskEither<AddressValidationError, CheckedAddress>
 
 type ValidateOrder =
   (func: CheckProductCodeExists) =>
     (func: CheckAddressExists) =>
       (arg: UnvalidatedOrder) =>
-        Either<ValidationError, ValidatedOrder>
+        TaskEither<ValidationError, ValidatedOrder>
 
 
 
@@ -92,11 +93,13 @@ const validateOrder: ValidateOrder =
       (unvalidatedOrder: UnvalidatedOrder) => {
         const orderId = pipe(
           unvalidatedOrder.OrderId,
-          toOrderId
+          toOrderId,
+          taskEither.fromEither
         )
         const customerInfo = pipe(
           unvalidatedOrder.CustomerInfo,
-          toCustomerInfo
+          toCustomerInfo,
+          taskEither.fromEither
         )
         const checkedShippingAddress = pipe(
           unvalidatedOrder.ShippingAddress,
@@ -104,7 +107,14 @@ const validateOrder: ValidateOrder =
         )
         const shippingAddress = pipe(
           checkedShippingAddress,
-          either.flatMap(toAddress)
+          taskEither.flatMap(
+            (unvalidatedAddress: UnvalidatedAddress) =>
+              pipe(
+                unvalidatedAddress,
+                toAddress,
+                taskEither.fromEither
+              )
+          )
         )
         const checkedBillingAddress = pipe(
           unvalidatedOrder.BillingAddress,
@@ -112,29 +122,30 @@ const validateOrder: ValidateOrder =
         )
         const billingAddress = pipe(
           checkedBillingAddress,
-          either.flatMap(toAddress)
+          taskEither.flatMap(flow(toAddress, taskEither.fromEither))
         )
         const lines = pipe(
           unvalidatedOrder.Lines,
           array.map(toValidatedOrderLine(checkProductCodeExists)),
-          array.sequence(either.Applicative)
+          array.sequence(either.Applicative),
+          taskEither.fromEither
         )
 
         return pipe(
           orderId,
-          either.flatMap((orderId: OrderId) =>
+          taskEither.flatMap((orderId: OrderId) =>
             pipe(
               customerInfo,
-              either.flatMap((customerInfo: CustomerInfo) =>
+              taskEither.flatMap((customerInfo: CustomerInfo) =>
                 pipe(
                   shippingAddress,
-                  either.flatMap((shippingAddress: Address) =>
+                  taskEither.flatMap((shippingAddress: Address) =>
                     pipe(
                       billingAddress,
-                      either.flatMap((billingAddress: Address) =>
+                      taskEither.flatMap((billingAddress: Address) =>
                         pipe(
                           lines,
-                          either.flatMap((lines) => {
+                          taskEither.flatMap((lines) => {
                             const validatedOrder: ValidatedOrder = {
                               OrderId: orderId,
                               CustomerInfo: customerInfo,
@@ -142,7 +153,7 @@ const validateOrder: ValidateOrder =
                               BillingAddress: billingAddress,
                               Lines: lines
                             }
-                            return right(validatedOrder)
+                            return taskEither.right(validatedOrder)
                           }
                           )
                         )
@@ -243,7 +254,7 @@ const toCheckedAddress =
       return pipe(
         address,
         checkAddress,
-        either.mapLeft((addError) => {
+        taskEither.mapLeft((addError) => {
           return match(addError)({
             AddressNotFound: (): ValidationError => {
               return {
@@ -481,16 +492,16 @@ const placeOrder =
               )
               const pricedOrderAdapted = pipe(
                 validatedOrderAdapted,
-                either.flatMap(priceOrder(getProductPrice))
+                taskEither.flatMap(flow(priceOrder(getProductPrice), taskEither.fromEither))
               )
               const acknowledgmentOption = pipe(
                 pricedOrderAdapted,
-                either.map(
+                taskEither.map(
                   acknowledgeOrder
                     (createOrderAcknowledgmentLetter)
                     (sendOrderAcknowledgment)
                 )
               )
-              const events = either.ap(acknowledgmentOption)(either.map(createEvents)(pricedOrderAdapted))
+              const events = taskEither.ap(acknowledgmentOption)(taskEither.map(createEvents)(pricedOrderAdapted))
               return events
             }
