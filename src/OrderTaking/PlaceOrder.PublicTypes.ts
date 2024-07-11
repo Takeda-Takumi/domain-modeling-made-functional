@@ -1,6 +1,6 @@
 import { Either } from "fp-ts/lib/Either"
 import { Address } from "./Common.CompoundTypes"
-import { BillingAmount, decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
+import { BillingAmount, Decimal, EmailAddress, OrderId } from "./Common.SimpleTypes"
 import { PricedOrder } from "./PlaceOrder.Implemantation"
 import { TaskEither } from "fp-ts/lib/TaskEither"
 
@@ -22,7 +22,7 @@ export type UnvalidatedAddress = {
 export type UnvalidatedOrderLine = {
   OrderLineId: string
   ProductCode: string
-  Quantity: decimal
+  Quantity: Decimal
 }
 
 export type UnvalidatedOrder = {
@@ -58,6 +58,7 @@ export type ValidationError = {
 
 export type PricingError = {
   type: "PricingError"
+  value: string
 }
 
 type ServiceInfo = {

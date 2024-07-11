@@ -1,7 +1,7 @@
 import { flip, flow, identity, pipe } from "fp-ts/lib/function"
 import { Address, CustomerInfo, PersonalName } from "./Common.CompoundTypes"
 import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, PlaceOrderWorkflow, PricingError, UnvalidatedAddress, UnvalidatedCustomerInfo, UnvalidatedOrder, UnvalidatedOrderLine, ValidationError } from "./PlaceOrder.PublicTypes"
-import { BillingAmount, createEmailAddress, createInt, createKilogramQuantity, createOptionString50, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createString50, createUnitQuantity, createZipCode, decimal, EmailAddress, GizmoCode, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, sumPricesBillingAmount, WidgetCode } from "./Common.SimpleTypes"
+import { BillingAmount, createEmailAddress, createInt, createKilogramQuantity, createOptionString50, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createString50, createUnitQuantity, createZipCode, Decimal, EmailAddress, GizmoCode, multiplyPrice, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, String50, sumPricesBillingAmount, valueOrderQuantity, WidgetCode, ZipCode } from "./Common.SimpleTypes"
 import { array, either, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { match } from "./util"
@@ -49,7 +49,7 @@ type Order = UnvalidatedOrder | ValidatedOrder | PricedOrder
 
 // 注文の検証
 
-type CheckProductCodeExists =
+export type CheckProductCodeExists =
   (arg: ProductCode) =>
     boolean
 
@@ -77,7 +77,7 @@ type ValidateOrder =
 
 
 
-type GetProductPrice =
+export type GetProductPrice =
   (arg: ProductCode) =>
     Price
 
@@ -176,17 +176,21 @@ const toOrderId =
           type: "ValidationError",
           value: errorString
         }
-      })
+      }),
     )
   }
 
 export const toAddress =
   (checkedAddress: CheckedAddress): Either<ValidationError, Address> => {
-
-
     const addressLine1 = pipe(
       checkedAddress.AddressLine1,
-      createString50
+      createString50,
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
 
     const addressLine2 = pipe(
@@ -204,48 +208,78 @@ export const toAddress =
     )
     const city = pipe(
       checkedAddress.City,
-      createString50
+      createString50,
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
     const zipCode = pipe(
       checkedAddress.ZipCode,
-      createZipCode
+      createZipCode,
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
 
-    const address: Address = {
-      AddressLine1: addressLine1,
-      AddressLine2: addressLine2,
-      AddressLine3: addressLine3,
-      AddressLine4: addressLine4,
-      City: city,
-      ZipCode: zipCode
-    }
-    return right(address)
+    return pipe(addressLine1, either.flatMap((addressLine1: String50) =>
+      pipe(city, either.flatMap((city: String50) =>
+        pipe(zipCode, either.map((zipCode: ZipCode) => {
+          const address: Address = {
+            AddressLine1: addressLine1,
+            AddressLine2: addressLine2,
+            AddressLine3: addressLine3,
+            AddressLine4: addressLine4,
+            City: city,
+            ZipCode: zipCode
+          }
+          return address
+        }))
+      ))
+    ))
   }
 
 export const toCustomerInfo =
   (customer: UnvalidatedCustomerInfo): Either<ValidationError, CustomerInfo> => {
     const firstName = pipe(
       customer.FirstName,
-      createString50
+      createString50,
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
     const lastName = pipe(
       customer.LastName,
-      createString50
+      createString50,
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
     const emailAddless = pipe(
       customer.EmailAddless,
       createEmailAddress
     )
-    const name: PersonalName = {
-      FisrstName: firstName,
-      LastName: lastName
-    }
-    const customerInfo: CustomerInfo = {
-      Name: name,
-      EmailAddress: emailAddless
-    }
-
-    return right(customerInfo)
+    return pipe(firstName, either.flatMap((firstName: String50) =>
+      pipe(lastName, either.map((lastName: String50) => {
+        const customerInfo: CustomerInfo = {
+          Name: { FisrstName: firstName, LastName: lastName },
+          EmailAddress: emailAddless
+        }
+        return customerInfo
+      })
+      )
+    ))
   }
 
 const toCheckedAddress =
@@ -279,79 +313,97 @@ const toValidatedOrderLine =
     (unvalidatedOrderLine: UnvalidatedOrderLine): Either<ValidationError, ValidatedOrderLine> => {
       const orderLineId = pipe(
         unvalidatedOrderLine.OrderLineId,
-        createOrderLineId
+        createOrderLineId,
+        either.mapLeft((e): ValidationError => {
+          return {
+            type: "ValidationError",
+            value: e
+          }
+        })
       )
       const productCode = pipe(
         unvalidatedOrderLine.ProductCode,
-        toProductCode(checkProductCodeExists)
+        toProductCode(checkProductCodeExists),
+        either.mapLeft((e): ValidationError => {
+          return {
+            type: "ValidationError",
+            value: e
+          }
+        })
       )
-
       const quantity = pipe(
-        unvalidatedOrderLine.Quantity,
-        toOrderQuantity(productCode)
+        productCode,
+        either.flatMap((productCode: ProductCode) => toOrderQuantity(productCode)(unvalidatedOrderLine.Quantity))
       )
 
-      const validatedOrderLine: ValidatedOrderLine = {
-        OrderLineId: orderLineId,
-        ProductCode: productCode,
-        Quantity: quantity
-      }
-
-      return right(validatedOrderLine)
+      return pipe(
+        orderLineId,
+        either.flatMap((orderLineId: OrderLineId) =>
+          pipe(productCode, either.flatMap((productCode: ProductCode) =>
+            pipe(quantity, either.map((quantity: OrderQuantity) => {
+              const validatedOrderLine: ValidatedOrderLine = {
+                OrderLineId: orderLineId,
+                ProductCode: productCode,
+                Quantity: quantity
+              }
+              return validatedOrderLine
+            }))
+          ))
+        )
+      )
     }
 
-const predicateToPassthru =
-  <T>(errorMsg: string) =>
-    (f: (arg: T) => boolean) =>
-      (x: T) => {
-        if (f(x)) {
-          return x
-        } else {
-          throw new Error(errorMsg)
-        }
-      }
 const toProductCode =
   (checkProductCodeExists: CheckProductCodeExists) =>
     (productCode: string) => {
       const checkProduct =
         (productCode: ProductCode) => {
-          const errorMsg = "Invalid"
-          return predicateToPassthru<ProductCode>(errorMsg)(checkProductCodeExists)(productCode)
+          if (checkProductCodeExists(productCode)) {
+            return either.right(productCode)
+          } else {
+            const msg = `Invalid: ${productCode}`
+            return either.left(msg)
+          }
         }
 
       return pipe(
         productCode,
-        createProductCode,
-        checkProduct,
+        createProductCode("ProductCode"),
+        either.flatMap(checkProduct),
       )
     }
 const toOrderQuantity =
   (productCode: ProductCode) =>
-    (quantity: decimal): OrderQuantity => {
-      match(productCode)<Either<string, OrderQuantity>>({
-        WidgetCode: (widgetCode: WidgetCode) => {
-          return pipe(
-            quantity,
-            createInt,
-            createUnitQuantity
-          )
-        },
-        GizmoCode: (gizmoCode: GizmoCode) => {
-          return pipe(
-            quantity,
-            createKilogramQuantity
-          )
-
+    (quantity: Decimal): Either<ValidationError, OrderQuantity> =>
+      pipe(createOrderQuantity(productCode)(quantity.value), either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
         }
-      })
+      }))
 
-      return createOrderQuantity(productCode)(quantity)
-    }
 const toPricedOrderLine =
   (getProductPrice: GetProductPrice) =>
-    (line: ValidatedOrderLine): PricedOrderLine => {
-      throw new Error()
-      return {} as PricedOrderLine
+    (validatedOrderLine: ValidatedOrderLine): Either<PricingError, PricedOrderLine> => {
+      const qty = pipe(validatedOrderLine.Quantity, valueOrderQuantity)
+      const price = pipe(validatedOrderLine.ProductCode, getProductPrice)
+      const linePrice = pipe(
+        multiplyPrice(qty)(price),
+        either.mapLeft((errorString: string): PricingError => {
+          return {
+            type: "PricingError",
+            value: errorString
+          }
+        }))
+      return either.map((linePrice: Price) => {
+        const pricedLine: PricedOrderLine = {
+          OrderLineId: validatedOrderLine.OrderLineId,
+          ProductCode: validatedOrderLine.ProductCode,
+          Quantity: validatedOrderLine.Quantity,
+          LinePrice: linePrice
+        }
+        return pricedLine
+      })(linePrice)
     }
 
 const priceOrder: PriceOrder =
@@ -359,27 +411,33 @@ const priceOrder: PriceOrder =
     (validateOrder: ValidatedOrder) => {
       const lines = pipe(
         validateOrder.Lines,
-        array.map(toPricedOrderLine(getProductPrice))
+        array.map(toPricedOrderLine(getProductPrice)),
+        array.sequence(either.Applicative)
       )
       const amountToBill = pipe(
         lines,
-        array.map((line) => line.LinePrice),
-        sumPricesBillingAmount
+        either.map(array.map(line => line.LinePrice)),
+        either.map(sumPricesBillingAmount)
       )
-      const pricedOrder: PricedOrder = {
-        OrderId: validateOrder.OrderId,
-        CustomerInfo: validateOrder.CustomerInfo,
-        ShippingAddress: validateOrder.ShippingAddress,
-        BillingAddress: validateOrder.BillingAddress,
-        Lines: lines,
-        AmountToBill: amountToBill
-      }
-      return either.right(pricedOrder)
+      return pipe(lines, either.flatMap((lines) =>
+        pipe(amountToBill, either.map((amountToBill) => {
+          const pricedOrder: PricedOrder = {
+            OrderId: validateOrder.OrderId,
+            CustomerInfo: validateOrder.CustomerInfo,
+            ShippingAddress: validateOrder.ShippingAddress,
+            BillingAddress: validateOrder.BillingAddress,
+            Lines: lines,
+            AmountToBill: amountToBill
+          }
+          return pricedOrder
+        }
+        ))
+      ))
     }
 
 export type HtmlString = string
 
-type CreateOrderAcknowledgmentLetter =
+export type CreateOrderAcknowledgmentLetter =
   (arg: PricedOrder) =>
     HtmlString
 
@@ -396,7 +454,7 @@ type NotSent = {
 }
 export type SendResult = Sent | NotSent
 
-type SendOrderAcknowledgment =
+export type SendOrderAcknowledgment =
   (arg: OrderAcknowledgment) =>
     SendResult
 
@@ -442,7 +500,7 @@ const createBillingEvent =
     const billingAmount = pipe(
       placedOrder.AmountToBill.value
     )
-    if (billingAmount > 0) {
+    if (billingAmount.value > 0) {
       return option.some({
         OrderId: placedOrder.OrderId,
         BillingAddress: placedOrder.BillingAddress,
@@ -477,7 +535,7 @@ const createEvents: CreateEvents =
 
     }
 
-const placeOrder =
+export const placeOrder =
   (checkProductCodeExists: CheckProductCodeExists) =>
     (checkAddressExists: CheckAddressExists) =>
       (getProductPrice: GetProductPrice) =>
