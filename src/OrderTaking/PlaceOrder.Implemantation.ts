@@ -1,7 +1,7 @@
 import { flip, flow, identity, pipe } from "fp-ts/lib/function"
 import { Address, CustomerInfo, PersonalName } from "./Common.CompoundTypes"
 import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, PlaceOrderWorkflow, PricingError, UnvalidatedAddress, UnvalidatedCustomerInfo, UnvalidatedOrder, UnvalidatedOrderLine, ValidationError } from "./PlaceOrder.PublicTypes"
-import { BillingAmount, createEmailAddress, createInt, createKilogramQuantity, createOptionString50, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createString50, createUnitQuantity, createZipCode, Decimal, EmailAddress, GizmoCode, multiplyPrice, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, String50, sumPricesBillingAmount, valueOrderQuantity, WidgetCode, ZipCode } from "./Common.SimpleTypes"
+import { BillingAmount, createEmailAddress, createInt, createKilogramQuantity, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, createZipCode, Decimal, EmailAddress, GizmoCode, multiplyPrice, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, String50, sumPricesBillingAmount, valueOrderQuantity, WidgetCode, ZipCode } from "./Common.SimpleTypes"
 import { array, either, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { match } from "./util"
@@ -184,7 +184,7 @@ export const toAddress =
   (checkedAddress: CheckedAddress): Either<ValidationError, Address> => {
     const addressLine1 = pipe(
       checkedAddress.AddressLine1,
-      createString50,
+      String50.create("AddressLine1"),
       either.mapLeft((e): ValidationError => {
         return {
           type: "ValidationError",
@@ -195,20 +195,38 @@ export const toAddress =
 
     const addressLine2 = pipe(
       checkedAddress.AddressLine2,
-      createOptionString50
+      String50.createOption("AddressLine2"),
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
     const addressLine3 = pipe(
       checkedAddress.AddressLine3,
-      createOptionString50
+      String50.createOption("AddressLine3"),
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
 
     const addressLine4 = pipe(
       checkedAddress.AddressLine4,
-      createOptionString50
+      String50.createOption("AddressLine4"),
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
     const city = pipe(
       checkedAddress.City,
-      createString50,
+      String50.create("City"),
       either.mapLeft((e): ValidationError => {
         return {
           type: "ValidationError",
@@ -229,17 +247,23 @@ export const toAddress =
 
     return pipe(addressLine1, either.flatMap((addressLine1: String50) =>
       pipe(city, either.flatMap((city: String50) =>
-        pipe(zipCode, either.map((zipCode: ZipCode) => {
-          const address: Address = {
-            AddressLine1: addressLine1,
-            AddressLine2: addressLine2,
-            AddressLine3: addressLine3,
-            AddressLine4: addressLine4,
-            City: city,
-            ZipCode: zipCode
-          }
-          return address
-        }))
+        pipe(zipCode, either.flatMap((zipCode: ZipCode) =>
+          pipe(addressLine2, either.flatMap((addressLine2) =>
+            pipe(addressLine3, either.flatMap((addressLine3) =>
+              pipe(addressLine4, either.map((addressLine4): Address => {
+                const address: Address = {
+                  AddressLine1: addressLine1,
+                  AddressLine2: addressLine2,
+                  AddressLine3: addressLine3,
+                  AddressLine4: addressLine4,
+                  City: city,
+                  ZipCode: zipCode
+                }
+                return address
+              }))
+            ))
+          ))
+        ))
       ))
     ))
   }
@@ -248,7 +272,7 @@ export const toCustomerInfo =
   (customer: UnvalidatedCustomerInfo): Either<ValidationError, CustomerInfo> => {
     const firstName = pipe(
       customer.FirstName,
-      createString50,
+      String50.create("FirstName"),
       either.mapLeft((e): ValidationError => {
         return {
           type: "ValidationError",
@@ -258,7 +282,7 @@ export const toCustomerInfo =
     )
     const lastName = pipe(
       customer.LastName,
-      createString50,
+      String50.create("LastName"),
       either.mapLeft((e): ValidationError => {
         return {
           type: "ValidationError",
@@ -381,6 +405,7 @@ const toOrderQuantity =
           value: e
         }
       }))
+
 
 const toPricedOrderLine =
   (getProductPrice: GetProductPrice) =>

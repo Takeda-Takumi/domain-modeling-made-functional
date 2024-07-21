@@ -26,15 +26,19 @@ class ConstrainedType {
             return either.right(str)
           }
         }
-  static createOptionString50(fieldName: string, maxLen: number, str: string) {
-    if (this.isEmptyString(str)) {
-      return either.left(option.none)
-    } else if (str.length > maxLen) {
-      return either.left(`${fieldName} must not be more than ${maxLen} chars`)
-    } else {
-      return either.right(option.some(str))
-    }
-  }
+  static createStringOption =
+    (fieldName: string) =>
+      (maxLen: number) =>
+        (str: string) => {
+          if (this.isEmptyString(str)) {
+            return either.right(option.none)
+          } else if (str.length > maxLen) {
+            return either.left(`${fieldName} must not be more than ${maxLen} chars`)
+          } else {
+            return either.right(option.some(str))
+          }
+        }
+
   static createInt =
     (fieldName: string) =>
       (minVal: number) =>
@@ -109,35 +113,33 @@ export const createInt = ConstrainedType.createInt("Int")(Number.MIN_VALUE)(Numb
 
 export const createDecimal = ConstrainedType.createDecimal("Decimal")(Number.MIN_VALUE)(Number.MAX_VALUE)
 
-export type String50 = {
-  type: "String50"
-  value: string
-}
-
-export const createString50 = (str: string): Either<string, String50> => {
-  return either.map(
-    (value: string): String50 => {
-      return {
-        type: "String50",
-        value: value
-      }
-    }
-  )(ConstrainedType.createString("String50")(50)(str))
-}
-
-export const createOptionString50 = (str: string): Option<String50> => {
-  if (str == undefined) {
-    return option.none
-  } else if (str === null || str === '') {
-    return option.none
-  } else if (str.length > 50) {
-    return option.none
-  } else {
-    return option.of<String50>({
-      type: "String50",
-      value: str
-    })
+export class String50 {
+  private value: string
+  private constructor(str: string) {
+    this.value = str
   }
+
+  static create =
+    (fieldName: string) =>
+      (str: string): Either<string, String50> => {
+        return either.map(
+          (value: string) => {
+            return new String50(value)
+          }
+        )(ConstrainedType.createString(fieldName)(50)(str))
+      }
+
+  static createOption =
+    (fieldName: string) =>
+      (str: string) => {
+        return pipe(
+          ConstrainedType.createStringOption(fieldName)(50)(str),
+          either.map((optionString) => pipe(
+            optionString,
+            option.map((str: string) => new String50(str))
+          ))
+        )
+      }
 }
 
 export type EmailAddress = {
