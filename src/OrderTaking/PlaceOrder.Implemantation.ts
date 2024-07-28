@@ -1,7 +1,7 @@
 import { flip, flow, identity, pipe } from "fp-ts/lib/function"
 import { Address, CustomerInfo, PersonalName } from "./Common.CompoundTypes"
 import { BillableOrderPlaced, OrderAcknowledgmentSent, OrderPlaced, PlaceOrderEvent, PlaceOrderWorkflow, PricingError, UnvalidatedAddress, UnvalidatedCustomerInfo, UnvalidatedOrder, UnvalidatedOrderLine, ValidationError } from "./PlaceOrder.PublicTypes"
-import { BillingAmount, createEmailAddress, createInt, createKilogramQuantity, createOrderId, createOrderLineId, createOrderQuantity, createProductCode, createUnitQuantity, createZipCode, Decimal, EmailAddress, GizmoCode, multiplyPrice, OrderId, OrderLineId, OrderQuantity, Price, ProductCode, String50, sumPricesBillingAmount, valueOrderQuantity, WidgetCode, ZipCode } from "./Common.SimpleTypes"
+import { BillingAmount, Decimal, EmailAddress, GizmoCode, OrderId, OrderLineId, OrderQuantity, OrderQuantityModule, Price, ProductCode, ProductCodeModule, String50, WidgetCode, ZipCode } from "./Common.SimpleTypes"
 import { array, either, option, taskEither } from "fp-ts"
 import { Option } from "fp-ts/lib/Option"
 import { match } from "./util"
@@ -170,7 +170,8 @@ const validateOrder: ValidateOrder =
 const toOrderId =
   (unvalidatedOrderId: string) => {
     return pipe(
-      createOrderId(unvalidatedOrderId),
+      unvalidatedOrderId,
+      OrderId.create("OrderId"),
       either.mapLeft((errorString: string): ValidationError => {
         return {
           type: "ValidationError",
@@ -236,7 +237,7 @@ export const toAddress =
     )
     const zipCode = pipe(
       checkedAddress.ZipCode,
-      createZipCode,
+      ZipCode.create("ZipCode"),
       either.mapLeft((e): ValidationError => {
         return {
           type: "ValidationError",
@@ -292,17 +293,24 @@ export const toCustomerInfo =
     )
     const emailAddless = pipe(
       customer.EmailAddless,
-      createEmailAddress
+      EmailAddress.create("EmailAddress"),
+      either.mapLeft((e): ValidationError => {
+        return {
+          type: "ValidationError",
+          value: e
+        }
+      })
     )
     return pipe(firstName, either.flatMap((firstName: String50) =>
-      pipe(lastName, either.map((lastName: String50) => {
-        const customerInfo: CustomerInfo = {
-          Name: { FisrstName: firstName, LastName: lastName },
-          EmailAddress: emailAddless
-        }
-        return customerInfo
-      })
-      )
+      pipe(lastName, either.flatMap((lastName: String50) =>
+        pipe(emailAddless, either.map((emailAddless: EmailAddress) => {
+          const customerInfo: CustomerInfo = {
+            Name: { FisrstName: firstName, LastName: lastName },
+            EmailAddress: emailAddless
+          }
+          return customerInfo
+        }))
+      ))
     ))
   }
 
@@ -337,7 +345,7 @@ const toValidatedOrderLine =
     (unvalidatedOrderLine: UnvalidatedOrderLine): Either<ValidationError, ValidatedOrderLine> => {
       const orderLineId = pipe(
         unvalidatedOrderLine.OrderLineId,
-        createOrderLineId,
+        OrderLineId.create("OrderLineId"),
         either.mapLeft((e): ValidationError => {
           return {
             type: "ValidationError",
@@ -392,14 +400,14 @@ const toProductCode =
 
       return pipe(
         productCode,
-        createProductCode("ProductCode"),
+        ProductCodeModule.create("ProductCode"),
         either.flatMap(checkProduct),
       )
     }
 const toOrderQuantity =
   (productCode: ProductCode) =>
     (quantity: Decimal): Either<ValidationError, OrderQuantity> =>
-      pipe(createOrderQuantity(productCode)(quantity.value), either.mapLeft((e): ValidationError => {
+      pipe(OrderQuantityModule.create("OrderQuantity")(productCode)(quantity.value), either.mapLeft((e): ValidationError => {
         return {
           type: "ValidationError",
           value: e
@@ -410,10 +418,10 @@ const toOrderQuantity =
 const toPricedOrderLine =
   (getProductPrice: GetProductPrice) =>
     (validatedOrderLine: ValidatedOrderLine): Either<PricingError, PricedOrderLine> => {
-      const qty = pipe(validatedOrderLine.Quantity, valueOrderQuantity)
+      const qty = pipe(validatedOrderLine.Quantity, OrderQuantityModule.value)
       const price = pipe(validatedOrderLine.ProductCode, getProductPrice)
       const linePrice = pipe(
-        multiplyPrice(qty)(price),
+        Price.multiply(qty)(price),
         either.mapLeft((errorString: string): PricingError => {
           return {
             type: "PricingError",
@@ -442,7 +450,17 @@ const priceOrder: PriceOrder =
       const amountToBill = pipe(
         lines,
         either.map(array.map(line => line.LinePrice)),
-        either.map(sumPricesBillingAmount)
+        either.flatMap((prices: Price[]) => {
+          const total = BillingAmount.sumPrices(prices)
+          return pipe(
+            total,
+            either.mapLeft((e): PricingError => {
+              return {
+                type: "PricingError",
+                value: e
+              }
+            }))
+        }),
       )
       return pipe(lines, either.flatMap((lines) =>
         pipe(amountToBill, either.map((amountToBill) => {

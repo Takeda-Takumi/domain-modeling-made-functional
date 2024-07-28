@@ -1,10 +1,7 @@
-import { array, either, monoid, option } from "fp-ts"
-import { Either, left, right } from "fp-ts/lib/Either"
-import { flip, identity, pipe } from "fp-ts/lib/function"
-import { MonoidSum } from "fp-ts/lib/number"
-import { Option } from "fp-ts/lib/Option"
+import { array, either, option, } from "fp-ts"
+import { Either, } from "fp-ts/lib/Either"
+import { identity, pipe } from "fp-ts/lib/function"
 import { match } from "./util"
-import { Monoid } from "fp-ts/lib/Monoid"
 
 class ConstrainedType {
   static isEmptyString(str: string) {
@@ -54,64 +51,69 @@ class ConstrainedType {
               const msg = `${fieldName}: Must not be greater than ${i}`
               return either.left(msg)
             } else {
-              return either.right(
-                {
-                  type: "Int",
-                  value: i
-                }
-              )
+              return Int.create(i)
             }
           }
 
   static createDecimal =
     (fieldName: string) =>
-      (minVal: number) =>
-        (maxVal: number) =>
+      (minVal: Decimal) =>
+        (maxVal: Decimal) =>
           (i: number): Either<string, Decimal> => {
-            if (i < minVal) {
+            if (i < minVal.value) {
               const msg = `${fieldName}: Must not be less than ${i}`
               return either.left(msg)
-            } else if (i > maxVal) {
+            } else if (i > maxVal.value) {
               const msg = `${fieldName}: Must not be greater than ${i}`
               return either.left(msg)
             } else {
-              return either.right(
-                {
-                  type: 'Decimal',
-                  value: i
-                }
-              )
+              return either.right(Decimal.create(i))
             }
           }
 
-  static createLike(fieldName: string, pattern: RegExp, str: string): Either<string, string> {
-    if (this.isEmptyString(str)) {
-      return either.left(`${fieldName} must not be null or empty`)
-    } else if (pattern.test(str)) {
-      return either.right(str)
-    } else {
-      const msg = `${fieldName}: ${str} must match the pattern ${pattern}`
-      return either.left(msg)
-    }
+  static createLike =
+    (fieldName: string) =>
+      (pattern: RegExp) =>
+        (str: string): Either<string, string> => {
+          if (this.isEmptyString(str)) {
+            return either.left(`${fieldName} must not be null or empty`)
+          } else if (pattern.test(str)) {
+            return either.right(str)
+          } else {
+            const msg = `${fieldName}: ${str} must match the pattern ${pattern}`
+            return either.left(msg)
+          }
+        }
+}
+
+export class Decimal {
+  static readonly empty: Decimal = new Decimal(0)
+  readonly value: number
+  private constructor(n: number) {
+    this.value = n
   }
-}
-export type Decimal = {
-  type: "Decimal"
-  value: number
-}
-const monoidSumDecimal: Monoid<Decimal> = {
-  concat: (x, y) => { return { type: "Decimal", value: x.value + y.value } },
-  empty: { type: "Decimal", value: 0 }
+  static create(n: number) {
+    return new Decimal(n)
+  }
+  multiply = (other: Decimal) => new Decimal(this.value * other.value)
+  sum = (other: Decimal) => new Decimal(this.value + other.value)
 }
 
-export type Int = {
-  type: "Int"
-  value: number
+export class Int {
+  static readonly empty: Int = new Int(0)
+  readonly value: number
+  private constructor(n: number) {
+    this.value = n
+  }
+  static create(n: number) {
+    if (Number.isInteger(n))
+      return either.right(new Int(n))
+    else
+      return either.left(`${n} is not integer`)
+  }
+  multiply = (other: Int) => new Int(this.value * other.value)
+  sum = (other: Int) => new Int(this.value + other.value)
 }
-
-export const createInt = ConstrainedType.createInt("Int")(Number.MIN_VALUE)(Number.MAX_VALUE)
-
-export const createDecimal = ConstrainedType.createDecimal("Decimal")(Number.MIN_VALUE)(Number.MAX_VALUE)
 
 export class String50 {
   private value: string
@@ -142,191 +144,234 @@ export class String50 {
       }
 }
 
-export type EmailAddress = {
-  type: "EmailAddress"
-  value: string
-}
-export const createEmailAddress =
-  (str: string): EmailAddress => {
-    //TODO: validate
-    return {
-      type: "EmailAddress",
-      value: str
-    }
+export class EmailAddress {
+  private value: string
+  private constructor(str: string) {
+    this.value = str;
   }
-
-export type ZipCode = {
-  type: "ZipCode"
-  value: string
-}
-export const createZipCode =
-  (str: string): Either<string, ZipCode> => {
-    //TODO: validate
-    return either.right({
-      type: "ZipCode",
-      value: str
-    })
-  }
-
-export type OrderLineId = {
-  type: "OrderLineId"
-  value: string
-}
-export const createOrderLineId = (str: string): Either<string, OrderLineId> => {
-  return either.map(
-    (value: string): OrderLineId => {
-      return {
-        type: "OrderLineId",
-        value: value
+  static create =
+    (fieldName: string) =>
+      (str: string) => {
+        const pattern = /.+@.+/
+        return pipe(
+          ConstrainedType.createLike(fieldName)(pattern)(str),
+          either.map((value: string) => new EmailAddress(value))
+        )
       }
-    }
-  )(ConstrainedType.createString("OrderLineId")(50)(str))
 }
 
-
-export type WidgetCode = {
-  type: "WidgetCode"
-  value: string
+export class ZipCode {
+  private value: string
+  private constructor(str: string) {
+    this.value = str;
+  }
+  static create =
+    (fieldName: string) =>
+      (str: string) => {
+        const pattern = /\d{5}/
+        return pipe(
+          ConstrainedType.createLike(fieldName)(pattern)(str),
+          either.map((value: string) => new ZipCode(value))
+        )
+      }
 }
-export const createWidgetCode = (str: string): Either<string, WidgetCode> => {
-  const pattern = /W\d{3}/
-  return either.map((value: string): WidgetCode => {
-    return {
-      type: "WidgetCode",
-      value: value
-    }
+
+export class OrderId {
+  private value: string
+  private constructor(str: string) {
+    this.value = str;
+  }
+  static create =
+    (fieldName: string) =>
+      (str: string) => {
+        return pipe(
+          ConstrainedType.createString(fieldName)(50)(str),
+          either.map((value: string) => new OrderId(value))
+        )
+      }
+}
+
+export class OrderLineId {
+  private value: string
+  private constructor(str: string) {
+    this.value = str
   }
 
-  )(ConstrainedType.createLike("WidgetCode", pattern, str))
-}
-export type GizmoCode = {
-  type: "GizmoCode"
-  value: string
+  static create =
+    (fieldName: string) =>
+      (str: string): Either<string, OrderLineId> => {
+        return either.map(
+          (value: string) => {
+            return new OrderLineId(value)
+          }
+        )(ConstrainedType.createString(fieldName)(50)(str))
+      }
 }
 
-export const createGizmoCode = (str: string): Either<string, GizmoCode> => {
-  const pattern = /W\d{3}/
-  return either.map((value: string): GizmoCode => {
-    return {
-      type: "GizmoCode",
-      value: value
-    }
+export class WidgetCode {
+  readonly type = 'WidgetCode'
+  private value: string
+  private constructor(str: string) {
+    this.value = str;
   }
-
-  )(ConstrainedType.createLike("WidgetCode", pattern, str))
+  static create =
+    (fieldName: string) =>
+      (str: string) => {
+        const pattern = /W\d{3}/
+        return pipe(
+          ConstrainedType.createLike(fieldName)(pattern)(str),
+          either.map((value: string) => new WidgetCode(value))
+        )
+      }
 }
+
+export class GizmoCode {
+  readonly type = 'GizmoCode'
+  private value: string
+  private constructor(str: string) {
+    this.value = str;
+  }
+  static create =
+    (fieldName: string) =>
+      (str: string) => {
+        const pattern = /G\d{3}/
+        return pipe(
+          ConstrainedType.createLike(fieldName)(pattern)(str),
+          either.map((value: string) => new GizmoCode(value))
+        )
+      }
+}
+
+export class ProductCodeModule {
+  private value: string
+  private constructor(str: string) {
+    this.value = str;
+  }
+  static create =
+    (fieldName: string) =>
+      (code: string): Either<string, ProductCode> => {
+        if (ConstrainedType.isEmptyString(code)) {
+          const msg = `${fieldName}: Must not be null or empty`
+          return either.left(msg)
+        } else if (code.at(0) === "W") {
+          return WidgetCode.create("WidgetCode")(code)
+        } else if (code.at(0) === "G") {
+          return GizmoCode.create("GizmoCode")(code)
+        } else {
+          const msg = `${fieldName}: Format not recognized ${code}`
+          return either.left(msg)
+        }
+      }
+}
+
 export type ProductCode = WidgetCode | GizmoCode
-export const createProductCode =
-  (fieldName: string) =>
-    (code: string): Either<string, ProductCode> => {
-      if (ConstrainedType.isEmptyString(code)) {
-        const msg = `${fieldName}: Must not be null or empty`
-        return either.left(msg)
-      } else if (code.at(0) === "W") {
-        return createWidgetCode(code)
-      } else if (code.at(0) === "G") {
-        return createGizmoCode(code)
-      } else {
-        const msg = `${fieldName}: Format not recognized ${code}`
-        return either.left(msg)
-      }
-    }
 
-export type UnitQuantity = {
-  readonly type: "UnitQuantity"
+export class UnitQuantity {
+  readonly type = "UnitQuantity"
   readonly value: Int
-}
-export const createUnitQuantity = (quantity: Int): Either<string, UnitQuantity> => {
-  return either.map(
-    (value: Int): UnitQuantity => {
-      return {
-        type: "UnitQuantity",
-        value: value
+  private constructor(v: Int) {
+    this.value = v;
+  }
+  static create =
+    (fieldName: string) =>
+      (v: number) => {
+        return pipe(
+          ConstrainedType.createInt(fieldName)(1)(1000)(v),
+          either.map((value: Int): UnitQuantity => new UnitQuantity(value))
+        )
       }
-    }
-  )(ConstrainedType.createInt("UnitQuantity")(1)(1000)(quantity.value))
 }
 
-type KilogramQuantity = {
-  type: "KilogramQuantity"
-  value: Decimal
-}
-export const createKilogramQuantity = (quantity: Decimal): Either<string, KilogramQuantity> => {
-  return either.map(
-    (value: Decimal): KilogramQuantity => {
-      return {
-        type: "KilogramQuantity",
-        value: value
+export class KilogramQuantity {
+  readonly type = "KilogramQuantity"
+  readonly value: Decimal
+  private constructor(v: Decimal) {
+    this.value = v;
+  }
+  static create =
+    (fieldName: string) =>
+      (v: number) => {
+        return pipe(
+          ConstrainedType.createDecimal(fieldName)(Decimal.create(0.05))(Decimal.create(100))(v),
+          either.map((value: Decimal): KilogramQuantity => new KilogramQuantity(value))
+        )
       }
-    }
-  )(ConstrainedType.createDecimal("KilogramQuantity")(1)(1000)(quantity.value))
 }
+
 export type OrderQuantity = UnitQuantity | KilogramQuantity
-export type valueOrderQuantity = (qty: OrderQuantity) => {
-}
 
-export const createOrderQuantity =
-  (productCode: ProductCode) =>
-    (quantity: number): Either<string, OrderQuantity> => {
-      return match(productCode)<Either<string, OrderQuantity>>({
-        WidgetCode: (_) => either.flatMap(createUnitQuantity)(createInt(quantity)),
-        GizmoCode: (_) => either.flatMap(createKilogramQuantity)(createDecimal(quantity))
+export class OrderQuantityModule {
+  static create =
+    (fieldName: string) =>
+      (productCode: ProductCode) =>
+        (quantity: number): Either<string, OrderQuantity> => {
+          return match(productCode)<Either<string, OrderQuantity>>({
+            WidgetCode: (_) => UnitQuantity.create(fieldName)(quantity),
+            GizmoCode: (_) => KilogramQuantity.create(fieldName)(quantity)
+          })
+        }
+
+  static value =
+    (qty: OrderQuantity): Decimal => {
+      return match(qty)({
+        UnitQuantity: (uq): Decimal => Decimal.create(uq.value.value),
+        KilogramQuantity: (kq) => kq.value
       })
     }
-export const valueOrderQuantity = (qty: OrderQuantity) => {
-  return match(qty)({
-    UnitQuantity: (uq): Decimal => { return { type: "Decimal", value: uq.value.value } },
-    KilogramQuantity: (kq) => kq.value
-  })
+
 }
 
-export type Price = {
-  type: "Price"
-  value: Decimal
-}
 
-export const multiplyPrice =
-  (qty: Decimal) =>
-    (p: Price): Either<string, Price> => {
-      return either.map(
-        (value: Decimal): Price => {
-          return {
-            type: "Price",
-            value: value
-          }
-        }
-      )(createDecimal(p.value.value * qty.value))
-    }
-
-
-export type BillingAmount = {
-  type: "BillingAmount"
-  value: Decimal
-}
-export const sumPricesBillingAmount =
-  (prices: Price[]): BillingAmount => {
-    const total = pipe(
-      prices,
-      array.map(price => price.value),
-      array.foldMap(monoidSumDecimal)(identity)
-    )
-    return {
-      type: "BillingAmount",
-      value: total
-    }
+export class Price {
+  readonly value: Decimal
+  private constructor(v: Decimal) {
+    this.value = v;
   }
 
-export type OrderId = {
-  type: "OrderId",
-  value: string
+  static unsafeCreate =
+    (v: number) => pipe(
+      this.create(v),
+      either.match(
+        (e) => { throw new Error(`Not expecting Price to be out of bounds: ${e}`) },
+        identity<Price>
+      )
+    )
+
+  static create =
+    (v: number) => {
+      return pipe(
+        ConstrainedType.createDecimal("Price")(Decimal.create(0))(Decimal.create(1000))(v),
+        either.map((value: Decimal): Price => new Price(value))
+      )
+    }
+  static multiply =
+    (qty: Decimal) =>
+      (p: Price): Either<string, Price> => this.create((qty.multiply(p.value)).value)
+
 }
 
-export const createOrderId = (id: string): Either<string, OrderId> => {
-  return either.map((value: string): OrderId => {
-    return {
-      type: "OrderId",
-      value: value
+export class BillingAmount {
+  readonly value: Decimal
+  private constructor(v: Decimal) {
+    this.value = v;
+  }
+  static create =
+    (v: number) => {
+      return pipe(
+        ConstrainedType.createDecimal("BillingAmount")(Decimal.create(0.0))(Decimal.create(10000))(v),
+        either.map((value: Decimal): BillingAmount => new BillingAmount(value))
+      )
     }
-  })(ConstrainedType.createString("OrderId")(50)(id))
+
+  static sumPrices =
+    (prices: Price[]) => {
+      const total = pipe(
+        prices,
+        array.map(price => price.value),
+        array.reduce(Decimal.empty, (acc: Decimal, cur: Decimal) => cur.sum(acc))
+      )
+      return this.create(total.value)
+    }
+
 }
 
